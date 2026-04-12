@@ -1,34 +1,59 @@
-#recordar subir sus cambios al repositorio de git
+# recordar subir sus cambios al repositorio de git
 import tkinter as tk
 from tkinter import messagebox
 
+# Diccionario global de señas
+MENSAJES = {
+    "A": "Puño cerrado con el pulgar al costado",
+    "B": "Mano abierta con dedos juntos",
+    "C": "Forma de la letra C con la mano"
+}
+
 # Función que simula mostrar la seña
 def mostrar_sena(letra):
-    mensajes = {
-        "A": "Seña A: Puño cerrado con el pulgar al costado",
-        "B": "Seña B: Mano abierta con dedos juntos",
-        "C": "Seña C: Forma de la letra C con la mano"
-    }
-    messagebox.showinfo("Lenguaje de Señas", mensajes[letra])
+    mensaje = MENSAJES.get(letra, "Seña no disponible")
+    messagebox.showinfo(f"Seña {letra}", mensaje)
+
+# Efecto hover en botones
+def on_enter(e):
+    e.widget.config(bg="#d1e7ff")
+
+def on_leave(e):
+    e.widget.config(bg="SystemButtonFace")
 
 # Crear ventana
 ventana = tk.Tk()
 ventana.title("Lenguaje de Señas - Demo")
-ventana.geometry("300x200")
+ventana.geometry("320x240")
+ventana.config(bg="#f0f0f0")
+
+# Frame contenedor
+frame = tk.Frame(ventana, bg="#f0f0f0")
+frame.pack(expand=True)
 
 # Título
-titulo = tk.Label(ventana, text="Aprende Señas Básicas", font=("Arial", 14))
+titulo = tk.Label(
+    frame,
+    text="Aprende Señas Básicas",
+    font=("Arial", 14, "bold"),
+    bg="#f0f0f0"
+)
 titulo.pack(pady=10)
 
-# Botones
-btn_a = tk.Button(ventana, text="A", width=10, command=lambda: mostrar_sena("A"))
-btn_a.pack(pady=5)
+# Crear botones dinámicamente
+for letra in MENSAJES.keys():
+    btn = tk.Button(
+        frame,
+        text=letra,
+        width=12,
+        font=("Arial", 11),
+        command=lambda l=letra: mostrar_sena(l)
+    )
+    btn.pack(pady=5)
 
-btn_b = tk.Button(ventana, text="B", width=10, command=lambda: mostrar_sena("B"))
-btn_b.pack(pady=5)
+    # Eventos hover
+    btn.bind("<Enter>", on_enter)
+    btn.bind("<Leave>", on_leave)
 
-btn_c = tk.Button(ventana, text="C", width=10, command=lambda: mostrar_sena("C"))
-btn_c.pack(pady=5)
-
-# Ejecutar
+# Ejecutar aplicación
 ventana.mainloop()
