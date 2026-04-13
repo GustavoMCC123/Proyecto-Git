@@ -1,2 +1,7 @@
 #recordar subir sus cambios al repositorio de git
-print("hello world")
+# recordar subir sus cambios al repositorio de git
+
+def saludo():
+    print("hola mundo")
+
+saludo()
