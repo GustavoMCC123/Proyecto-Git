@@ -1,7 +1,6 @@
 # recordar subir sus cambios al repositorio de git
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk  # 🔥 NUEVO Agregar imagenes
 
 # ==============================
 # DICCIONARIO DE SEÑAS (A - Z)
@@ -32,46 +31,8 @@ MENSAJES = {
     "W": "Tres dedos extendidos",
     "X": "Índice doblado en forma de gancho",
     "Y": "Pulgar y meñique extendidos",
-    "Z": "Movimiento en forma de Z con el dedo",
-    "CH": "Mano en forma de C con los dedos juntos",
-    "Ñ": "Mano en forma de Ñ con los dedos juntos",
+    "Z": "Movimiento en forma de Z con el dedo"
 }
-
-
-# ==============================
-# RUTA DE IMÁGENES   imagenes
-# ==============================
-IMAGENES = {
-    "A": "imagenes/A.png",
-    "B": "imagenes/B.png",
-    "C": "imagenes/C.png",
-    "CH": "imagenes/CH.png",
-    "D": "imagenes/D.png",
-    "E": "imagenes/E.png",
-    "F": "imagenes/F.png",
-    "G": "imagenes/G.png",
-    "H": "imagenes/H.png",
-    "I": "imagenes/I.png",
-    "J": "imagenes/J.png",
-    "K": "imagenes/K.png",
-    "L": "imagenes/L.png",
-    "M": "imagenes/M.png",
-    "N": "imagenes/N.png",
-    "Ñ": "imagenes/Ñ.png",
-    "O": "imagenes/O.png",
-    "P": "imagenes/P.png",
-    "Q": "imagenes/Q.png",
-    "R": "imagenes/R.png",
-    "S": "imagenes/S.png",
-    "T": "imagenes/T.png",
-    "U": "imagenes/U.png",
-    "V": "imagenes/V.png",
-    "W": "imagenes/W.png",
-    "X": "imagenes/X.png",
-    "Y": "imagenes/Y.png",
-    "Z": "imagenes/Z.png"
-}
-
 
 # ==============================
 # FUNCIONES
@@ -79,33 +40,7 @@ IMAGENES = {
 
 def mostrar_sena(letra):
     mensaje = MENSAJES.get(letra, "Seña no disponible")
-
-
-    #  Nueva ventana
-    ventana_img = tk.Toplevel()
-    ventana_img.title(f"Seña {letra}")
-    ventana_img.geometry("300x300")
-
-    label = tk.Label(ventana_img, text=mensaje, font=("Arial", 10))
-    label.pack(pady=10)
-
-    #  Mostrar imagen si existe
-    if letra in IMAGENES:
-        try:
-            img = Image.open(IMAGENES[letra])
-            img = img.resize((200, 200))
-            foto = ImageTk.PhotoImage(img)
-
-            panel = tk.Label(ventana_img, image=foto)
-            panel.image = foto          # importante para que no se borre
-            panel.pack()
-        except:
-            tk.Label(ventana_img, text="No se pudo cargar la imagen").pack()
-    else:
-        tk.Label(ventana_img, text="Imagen no disponible").pack()
-
-
-
+    messagebox.showinfo(f"Seña {letra}", mensaje)
 
 def buscar_sena():
     letra = entrada.get().upper()
@@ -114,14 +49,11 @@ def buscar_sena():
     else:
         messagebox.showerror("Error", "Letra no válida")
 
-
 def on_enter(e):
     e.widget.config(bg="#a6d4ff")
 
 def on_leave(e):
     e.widget.config(bg="#e0e0e0")
-
-
 
 # ==============================
 # INTERFAZ
