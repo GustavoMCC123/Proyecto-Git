@@ -115,6 +115,109 @@ def buscar_sena():
         messagebox.showerror("Error", "Letra no válida")
 
 
+def traducir_frase():
+
+    frase = entrada_frase.get().upper()
+
+    if frase == "":
+        messagebox.showwarning("Aviso", "Escribe una frase")
+        return
+
+    # Crear ventana del traductor
+    ventana_trad = tk.Toplevel()
+    ventana_trad.title("Traducción de Frase")
+    ventana_trad.geometry("1000x400")
+    ventana_trad.config(bg="white")
+
+    # Título
+    titulo = tk.Label(
+        ventana_trad,
+        text=f"Frase: {frase}",
+        font=("Arial", 18, "bold"),
+        bg="white",
+        fg="#333"
+    )
+
+    titulo.pack(pady=10)
+
+    # Frame donde estarán las imágenes
+    frame_imagenes = tk.Frame(
+        ventana_trad,
+        bg="white"
+    )
+
+    frame_imagenes.pack(pady=20)
+
+    # Lista para guardar referencias
+    imagenes_refs = []
+
+    # Mostrar cada letra
+    for letra in frase:
+
+        if letra == " ":
+            continue
+
+        if letra in IMAGENES:
+
+            try:
+                # Abrir imagen
+                img = Image.open(IMAGENES[letra])
+
+                # Redimensionar
+                img = img.resize((100, 100))
+
+                foto = ImageTk.PhotoImage(img)
+
+                # Guardar referencia
+                imagenes_refs.append(foto)
+
+                # Frame individual
+                frame_letra = tk.Frame(
+                    frame_imagenes,
+                    bg="white"
+                )
+
+                frame_letra.pack(
+                    side="left",
+                    padx=10
+                )
+
+                # Mostrar letra
+                tk.Label(
+                    frame_letra,
+                    text=letra,
+                    font=("Arial", 16, "bold"),
+                    bg="white"
+                ).pack()
+
+                # Mostrar imagen
+                panel = tk.Label(
+                    frame_letra,
+                    image=foto,
+                    bg="white"
+                )
+
+                panel.image = foto
+                panel.pack()
+
+                # Mostrar descripción
+                tk.Label(
+                    frame_letra,
+                    text=MENSAJES[letra],
+                    font=("Arial", 8),
+                    bg="white",
+                    wraplength=120
+                ).pack(pady=5)
+
+            except:
+                tk.Label(
+                    frame_imagenes,
+                    text=f"Error en {letra}",
+                    bg="white",
+                    fg="red"
+                ).pack(side="left")
+
+
 def on_enter(e):
     e.widget.config(bg="#a6d4ff")
 
@@ -157,6 +260,41 @@ btn_buscar = tk.Button(
     fg="white"
 )
 btn_buscar.pack(side="left")
+
+# ==============================
+# TRADUCTOR DE FRASES
+# ==============================
+
+frame_traductor = tk.Frame(ventana, bg="#f5f7fa")
+frame_traductor.pack(pady=20)
+
+label_traductor = tk.Label(
+    frame_traductor,
+    text="Escribe una palabra o frase:",
+    font=("Arial", 12),
+    bg="#f5f7fa"
+)
+label_traductor.pack()
+
+entrada_frase = tk.Entry(
+    frame_traductor,
+    width=30,
+    font=("Arial", 14)
+)
+entrada_frase.pack(pady=5)
+
+btn_traducir = tk.Button(
+    frame_traductor,
+    text="Traducir",
+    bg="#2196F3",
+    fg="white",
+    font=("Arial", 11, "bold"),
+    command=lambda: traducir_frase()
+)
+
+btn_traducir.pack()
+
+
 
 # Frame de botones
 frame_botones = tk.Frame(ventana, bg="#f5f7fa")
