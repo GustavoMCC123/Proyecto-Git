@@ -1,337 +1,513 @@
-# recordar subir sus cambios al repositorio de git
-import tkinter as tk
-from tkinter import messagebox
-from PIL import Image, ImageTk  # 🔥 NUEVO Agregar imagenes
+import streamlit as st
+import cv2
+import mediapipe as mp
+import numpy as np
+import time
+from PIL import Image
+import os
 
-# ==============================
-# DICCIONARIO DE SEÑAS (A - Z)
-# ==============================
-MENSAJES = {
-    "A": "Puño cerrado con el pulgar al costado",
-    "B": "Mano abierta con dedos juntos",
-    "C": "Forma de la letra C con la mano",
-    "D": "Índice levantado, demás dedos juntos",
-    "E": "Dedos doblados hacia la palma",
-    "F": "Pulgar e índice formando un círculo",
-    "G": "Mano horizontal con índice apuntando",
-    "H": "Índice y medio extendidos horizontalmente",
-    "I": "Meñique levantado",
-    "J": "Movimiento en forma de J con el meñique",
-    "K": "Índice y medio en forma de V con pulgar",
-    "L": "Pulgar e índice formando una L",
-    "M": "Tres dedos sobre el pulgar",
-    "N": "Dos dedos sobre el pulgar",
-    "O": "Forma de círculo con los dedos",
-    "P": "Como K pero hacia abajo",
-    "Q": "Como G pero hacia abajo",
-    "R": "Índice y medio cruzados",
-    "S": "Puño cerrado",
-    "T": "Pulgar entre índice y medio",
-    "U": "Índice y medio juntos hacia arriba",
-    "V": "Índice y medio separados (paz)",
-    "W": "Tres dedos extendidos",
-    "X": "Índice doblado en forma de gancho",
-    "Y": "Pulgar y meñique extendidos",
-    "Z": "Movimiento en forma de Z con el dedo",
-    "CH": "Mano en forma de C con los dedos juntos",
-    "Ñ": "Mano en forma de Ñ con los dedos juntos",
+
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime
+
+
+
+# ---------- Configuración de SQLAlchemy ----------
+Base = declarative_base()
+
+
+class Mensaje(Base):
+    __tablename__ = 'mensajes'  # <- Doble guion bajo
+    id = Column(Integer, primary_key=True)
+    texto = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+
+# Base de datos SQLite (local, en archivo)
+engine = create_engine('sqlite:///mensajes.db')
+Base.metadata.create_all(engine)
+
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Crear tabla si no existe
+Base.metadata.create_all(engine)
+
+# ===== CONFIGURACIÓN INICIAL =====
+st.set_page_config(
+    page_title="Comunicador de Señas",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ===== ESTILOS CSS =====
+st.markdown("""
+<style>
+.sidebar .sidebar-content {
+    background-color: #f0f2f6;
+    padding: 1rem;
 }
-
-
-# ==============================
-# RUTA DE IMÁGENES   imagenes
-# ==============================
-IMAGENES = {
-    "A": "imagenes/A.png",
-    "B": "imagenes/B.png",
-    "C": "imagenes/C.png",
-    "CH": "imagenes/CH.png",
-    "D": "imagenes/D.png",
-    "E": "imagenes/E.png",
-    "F": "imagenes/F.png",
-    "G": "imagenes/G.png",
-    "H": "imagenes/H.png",
-    "I": "imagenes/I.png",
-    "J": "imagenes/J.png",
-    "K": "imagenes/K.png",
-    "L": "imagenes/L.png",
-    "M": "imagenes/M.png",
-    "N": "imagenes/N.png",
-    "Ñ": "imagenes/Ñ.png",
-    "O": "imagenes/O.png",
-    "P": "imagenes/P.png",
-    "Q": "imagenes/Q.png",
-    "R": "imagenes/R.png",
-    "S": "imagenes/S.png",
-    "T": "imagenes/T.png",
-    "U": "imagenes/U.png",
-    "V": "imagenes/V.png",
-    "W": "imagenes/W.png",
-    "X": "imagenes/X.png",
-    "Y": "imagenes/Y.png",
-    "Z": "imagenes/Z.png"
+.img-container {
+    border: 2px solid #4f8bf9;
+    border-radius: 10px;
+    padding: 10px;
+    background: white;
+    margin-bottom: 1rem;
 }
+.letter-badge {
+    background: #4f8bf9;
+    color: white;
+    padding: 3px 10px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    display: inline-block;
+    margin: 3px;
+}
+.camera-frame {
+    border: 3px solid #4f8bf9;
+    border-radius: 10px;
+    padding: 5px;
+}
+.message-box {
+    background-color: #f0f8ff;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+</style>
+""", unsafe_allow_html=True)
 
+# ===== INTERFAZ PRINCIPAL =====
+st.title(" Comunicador de Lenguaje de Señas")
+st.markdown("""
+<div class="message-box">
+    <b>Instrucciones:</b> Muestra tu mano frente a la cámara para formar letras en lenguaje de señas.
+</div>
+""", unsafe_allow_html=True)
 
-# ==============================
-# FUNCIONES
-# ==============================
-
-def mostrar_sena(letra):
-    mensaje = MENSAJES.get(letra, "Seña no disponible")
-
-
-    #  Nueva ventana
-    ventana_img = tk.Toplevel()
-    ventana_img.title(f"Seña {letra}")
-    ventana_img.geometry("300x300")
-
-    label = tk.Label(ventana_img, text=mensaje, font=("Arial", 10))
-    label.pack(pady=10)
-
-    #  Mostrar imagen si existe
-    if letra in IMAGENES:
+# ===== BARRA LATERAL =====
+with st.sidebar:
+    st.header("Referencia de Señas", divider='blue')
+    
+    # Imagen del abecedario
+    with st.container():
+        st.markdown('<div class="img-container">', unsafe_allow_html=True)
         try:
-            img = Image.open(IMAGENES[letra])
-            img = img.resize((200, 200))
-            foto = ImageTk.PhotoImage(img)
-
-            panel = tk.Label(ventana_img, image=foto)
-            panel.image = foto          # importante para que no se borre
-            panel.pack()
+            img = Image.open("imagenes/abecedario.png")
+            st.image(img, use_container_width=True)
         except:
-            tk.Label(ventana_img, text="No se pudo cargar la imagen").pack()
-    else:
-        tk.Label(ventana_img, text="Imagen no disponible").pack()
+            st.warning("Coloca 'abecedario.png' en esta carpeta")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Guía de gestos
+    with st.expander("Cómo hacer cada letra"):
+        st.markdown("""
+        <div style="column-count: 2;">
+            <span class='letter-badge'>A</span> Mano cerrada<br>
+            <span class='letter-badge'>B</span> Mano abierta<br>
+            <span class='letter-badge'>C</span> Forma de C<br>
+            <span class='letter-badge'>D</span> Índice arriba<br>
+            <span class='letter-badge'>E</span> Mano cerrada con pulgar<br>
+            <span class='letter-badge'>F</span> OK invertido<br>
+            <span class='letter-badge'>G</span> Índice a un lado<br>
+            <span class='letter-badge'>H</span> Índice+medio<br>
+            <span class='letter-badge'>I</span> Meñique arriba<br>
+            <span class='letter-badge'>J</span> Meñique con movimiento<br>
+            <span class='letter-badge'>K</span> Índice+medio cruzados<br>
+            <span class='letter-badge'>L</span> Índice+pulgar<br>
+            <span class='letter-badge'>M</span> 3 dedos abajo<br>
+            <span class='letter-badge'>N</span> 2 dedos cruzados<br>
+            <span class='letter-badge'>O</span> Círculo con dedos<br>
+            <span class='letter-badge'>P</span> Pinza<br>
+            <span class='letter-badge'>Q</span> Índice abajo<br>
+            <span class='letter-badge'>R</span> Medio arriba<br>
+            <span class='letter-badge'>S</span> Puño cerrado<br>
+            <span class='letter-badge'>T</span> Índice con pulgar<br>
+            <span class='letter-badge'>U</span> Índice+medio juntos<br>
+            <span class='letter-badge'>V</span> Índice+medio separados<br>
+            <span class='letter-badge'>W</span> 3 dedos extendidos<br>
+            <span class='letter-badge'>X</span> Índice curvado<br>
+            <span class='letter-badge'>Y</span> Pulgar+meñique<br>
+            <span class='letter-badge'>Z</span> Movimiento de Z<br>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("*Gestos Especiales*")
+    st.markdown("- <span class='letter-badge'>✊</span> Puño cerrado:", unsafe_allow_html=True)
+    st.markdown("- <span class='letter-badge'>🖐️</span> Mano abierta:", unsafe_allow_html=True)
+    st.markdown("- <span class='letter-badge'>🤟</span> I love you:", unsafe_allow_html=True)
+
+# ===== MODELO DE DETECCIÓN =====
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(model_complexity=1, min_detection_confidence=0.8, min_tracking_confidence=0.8, max_num_hands=1)
+
+# ===== FUNCIONES AUXILIARES =====
+def distancia(p1, p2): return np.linalg.norm(np.array(p1) - np.array(p2))
+def dedo_extendido(px, id_dedo): return px(id_dedo)[1] < px(id_dedo-2)[1]
+def pulgar_cruzado(px): return px(4)[0] < px(2)[0]
+
+# ===== DETECCIÓN COMPLETA A-Z =====
+def distancia(p1, p2):
+    return np.linalg.norm(np.array(p1) - np.array(p2))
+
+def detectar_gesto(landmarks, width, height):
+    def px(id): return (int(landmarks.landmark[id].x * width), int(landmarks.landmark[id].y * height))
+    
+    # Coordenadas clave
+    index_tip, index_pip = px(8), px(6)
+    middle_tip, middle_pip = px(12), px(10)
+    ring_tip, ring_pip = px(16), px(14)
+    pinky_tip, pinky_pip = px(20), px(18)
+    thumb_tip, thumb_ip, thumb_mcp = px(4), px(3), px(2)
+    palm_center = px(0)  # Landmark 0 = centro de la palma
+
+    # ================== LETRA A ==================
+    distancia_anulartip_cero = distancia(palm_center, ring_tip)
+    if all(tip[1] > pip[1] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[1] < thumb_ip[1] and 30<distancia_anulartip_cero<60:
+        #st.write("Distancia entre tip anular y cero:", distancia_anulartip_cero)
+        return "A"
+
+    # ================== LETRA B ==================
+    distancia_horizontal = abs(index_tip[0] - thumb_tip[0])
+    distancia_tipIndice_tipMenique = distancia(pinky_tip,index_tip)
+    if all(tip[1] < pip[1] for tip, pip in [ 
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[1] < thumb_ip[1] and 10<distancia_horizontal<35 and 50< distancia_tipIndice_tipMenique < 100:
+        #st.write("Distancia entre pulgar e índice:", distancia_tipIndice_tipMenique)
+        return "B"
+
+    # ================== LETRA C ==================
+    dist_thumb_index = distancia(thumb_tip, index_tip)
+    dist_middle_ring = distancia(middle_tip, ring_tip)
+    dedos_curvados = sum(tip[1] > pip[1] for tip, pip in [ # "sum" cuenta 
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip),
+        (thumb_tip, thumb_ip)
+    ]) >= 2  # Al menos 2 dedos un poco levantados
+
+    if all(tip[1] > pip[1] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip),
+        (thumb_tip, thumb_ip)]) and 50 < dist_thumb_index < 70 and dist_middle_ring < 40 and dedos_curvados:
+        return "C"
+
+    # ================== LETRA D ==================
+    if distancia(thumb_tip, middle_tip) < 30  and index_tip[1] < index_pip[1] and all(tip[0] > pip[0] for tip, pip in [
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]):
+        return "D"
+
+    # ================== LETRA E ==================
+    distancia_tipPulgar_cero=distancia(thumb_tip, palm_center)
+    if all(abs(tip[1] - pip[1]) < 30 for tip, pip in [
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[0] < index_tip[0] and thumb_tip[0] < thumb_ip[0] and 80 < distancia_tipPulgar_cero < 150:
+        #st.write("Distancia:", distancia_tipPulgar_cero)
+        return "E"
+
+
+    # ================== LETRA F ==================
+    if (distancia(thumb_tip, index_tip) < 30 and
+        all(tip[1] < pip[1] for tip, pip in [
+            (middle_tip, middle_pip), 
+            (ring_tip, ring_pip), 
+            (pinky_tip, pinky_pip)]) and index_tip > index_pip):
+        return "F"
+    
+     #================== LETRA G ==================
+    dist_tipPulgar_tipIndice = distancia(index_tip,thumb_tip)
+    if (index_tip[1] < index_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip),
+            (middle_tip, middle_pip)]) and  
+            thumb_tip[0] > thumb_ip[0] and
+            thumb_tip[0] > index_tip[0] and 40< dist_tipPulgar_tipIndice <70):
+        #st.write("Distancia:", dist_tipPulgar_tipIndice)
+        return "G"
+    
+    # ================== LETRA I ==================
+    distancia_tipPulgar_tipMenique = distancia(pinky_tip,thumb_tip)
+    if (pinky_tip[1] < pinky_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [
+            (index_tip, index_pip), 
+            (middle_tip, middle_pip), 
+            (ring_tip, ring_pip)]) and  thumb_tip[1] < thumb_ip[1]) and 100< distancia_tipPulgar_tipMenique <200:
+        #st.write("Distancia:", distancia_tipPulgar_tipMenique)
+        return "I"
+    
+    # ================== LETRA J ==================
+    distancia_tipIndice_tipMenique2 = distancia(pinky_tip,middle_tip)
+    if (pinky_tip[1] < pinky_pip[1] and 
+        index_tip[1] < index_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (middle_tip, middle_pip), 
+            (ring_tip, ring_pip)]) and  thumb_tip[1] < thumb_ip[1] and 100 < distancia_tipIndice_tipMenique2 < 200):
+        #st.write("Distancia:", distancia_tipIndice_tipMenique2)
+        return "J"
+    
+     # ================== LETRA K ==================
+    dist_tipIndice_tipMedio = distancia(middle_tip, index_tip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] < middle_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip)]) and  
+            thumb_tip[1] < thumb_ip[1] and 
+            10<distancia_horizontal<35 and
+            30< dist_tipIndice_tipMedio <60):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "K"
+        # ================== LETRA L ==================
+    if (index_tip[1] < index_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip),
+            (middle_tip, middle_pip)]) and  
+            thumb_tip[0] > thumb_ip[0] and
+            thumb_tip[0] > index_tip[0] and distancia_anulartip_cero < 60):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "L"
+    # ================== LETRA M ==================
+    if all(tip[1] > pip[1] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (thumb_tip, thumb_ip)
+    ]) and pinky_tip[1] < pinky_pip[1]:    
+        return "M" 
+     # ================== LETRA N ==================             
+    if all(tip[1] > pip[1] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (thumb_tip, thumb_ip)
+    ]) and pinky_tip[1] < pinky_pip[1] and ring_tip[1] < ring_pip[1]:    
+        return "N"
+    # ================== LETRA O ==================
+    if all(tip[0] > pip[0] for tip, pip in [
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip),
+        (thumb_tip, thumb_ip)
+    ]) and distancia(thumb_tip, index_tip) < 30:
+        return "O"
+
+# ================== LETRA P ==================
+    if all(tip[0] < pip[0] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[0] > thumb_ip[0] and index_tip[0] > index_pip[0] and middle_tip[0] > middle_pip[0]:
+        #st.write("Distancia: ", dist_tipPulgar_tipIndice)
+        return "P"
+    
+    # ================== LETRA R ==================
+    #dist_tipIndice_tipMedio_cruzados = distancia(middle_tip, index_tip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] < middle_pip[1] and
+        thumb_tip[1] < thumb_ip[1] and 
+
+        index_tip[0] < middle_tip[0] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip)])):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "R"
+    
+    # ================== LETRA T ==================
+    #dist_tipPulgar_tipIndice = distancia(index_tip,thumb_tip)
+    if all(tip[0] < pip[0] for tip, pip in [  # "all" todos deben cumplir la condicion
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[1] < thumb_ip[1] and index_tip[0] > thumb_tip[0] and 140<dist_tipPulgar_tipIndice < 180:
+        #st.write("Distancia: ", dist_tipPulgar_tipIndice)
+        return "T"
+
+    # ================== LETRA U ==================
+    dist_tipIndice_tipMedio_juntos = distancia(middle_tip, index_tip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] < middle_pip[1] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip)]) and  thumb_tip[1] < thumb_ip[1] and 
+            thumb_tip[0] < middle_tip[0] and 
+            dist_tipIndice_tipMedio_juntos < 30):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "U"
+    # ================== LETRA V ==================
+    dist_tipIndice_tipMedio = distancia(middle_tip, index_tip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] < middle_pip[1] and
+        thumb_tip[1] < thumb_ip[1] and
+        index_tip[0] > thumb_tip[0] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip)]) and   40< dist_tipIndice_tipMedio <60):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "V"   
+    
+    # ================== LETRA S ==================
+    dist_tipIndice_tipPulgar = distancia(thumb_tip, middle_pip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] > middle_pip[1] and
+        thumb_tip[1] < thumb_ip[1] and
+        index_tip[0] > thumb_tip[0] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (ring_tip, ring_pip),
+            (pinky_tip, pinky_pip)]) and dist_tipIndice_tipPulgar < 30 ):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "S"  
+
+    # ================== LETRA W ==================
+    # dist_tipIndice_tipMedio = distancia(middle_tip, index_tip)
+    if (index_tip[1] < index_pip[1] and
+        middle_tip[1] < middle_pip[1] and
+        thumb_tip[1] < thumb_ip[1] and
+        ring_tip[1] < ring_pip[1] and 
+
+        index_tip[0] > thumb_tip[0] and
+        all(tip[1] > pip[1] for tip, pip in [ 
+            (pinky_tip, pinky_pip)]) ):
+        #st.write("Distancia:", dist_tipIndice_tipMedio)
+        return "W"    
+
+
+    # ================== LETRA _ ==================
+    #distancia_tipIndice_tipMenique = distancia(pinky_tip,thumb_tip)
+    if all(tip[1] < pip[1] for tip, pip in [ 
+        (index_tip, index_pip),
+        (middle_tip, middle_pip),
+        (ring_tip, ring_pip),
+        (pinky_tip, pinky_pip)
+    ]) and thumb_tip[1] < thumb_ip[1]:
+        #st.write("Distancia:", distancia_tipIndice_tipMenique)
+        return "_"
+
+    # ================== LETRA J ==================
+    # Requiere detección de movimiento del meñique (trayectoria curva)
+    # Este bloque es un marcador para agregar detección por trayectoria más adelante.
+    # Por ahora, puedes dejarlo así:
+    # if trayectoria_del_meñique_forma_curva():
+    #     return "J"
+    
 
 
 
 
-def buscar_sena():
-    letra = entrada.get().upper()
-    if letra in MENSAJES:
-        mostrar_sena(letra)
-    else:
-        messagebox.showerror("Error", "Letra no válida")
+# ===== INTERFAZ DE USUARIO =====
+col1, col2 = st.columns([2, 1])
 
+with col1:
+    st.subheader("Cámara en Tiempo Real")
+    run = st.checkbox("Iniciar Cámara", True)
+    frame_placeholder = st.empty()
 
-def traducir_frase():
-
-    frase = entrada_frase.get().upper()
-
-    if frase == "":
-        messagebox.showwarning("Aviso", "Escribe una frase")
-        return
-
-    # Crear ventana del traductor
-    ventana_trad = tk.Toplevel()
-    ventana_trad.title("Traducción de Frase")
-    ventana_trad.geometry("1000x400")
-    ventana_trad.config(bg="white")
-
-    # Título
-    titulo = tk.Label(
-        ventana_trad,
-        text=f"Frase: {frase}",
-        font=("Arial", 18, "bold"),
-        bg="white",
-        fg="#333"
+with col2:
+    st.subheader("Mensaje Construido")
+    if "mensaje" not in st.session_state:
+        st.session_state.mensaje = []
+    
+    mensaje_display = st.empty()
+    mensaje_display.markdown(
+        f"<div style='min-height: 100px; border: 1px solid #eee; padding: 10px; border-radius: 5px;'><b>{' '.join(st.session_state.mensaje)}</b></div>",
+        unsafe_allow_html=True
     )
 
-    titulo.pack(pady=10)
+    if st.button("Borrar Todo", use_container_width=True):
+        st.session_state.mensaje = []
+        mensaje_display.markdown("<div style='min-height: 100px; border: 1px solid #eee; padding: 10px; border-radius: 5px;'></div>", unsafe_allow_html=True)
 
-    # Frame donde estarán las imágenes
-    frame_imagenes = tk.Frame(
-        ventana_trad,
-        bg="white"
-    )
+    # Botón para guardar mensaje en la base de datos
+    if st.button("Guardar mensaje", use_container_width=True):
+        mensaje_final = ''.join(st.session_state.mensaje).strip()
+        if mensaje_final:
+            nuevo = Mensaje(texto=mensaje_final)
+            session.add(nuevo)
+            session.commit()
+            st.success("Mensaje guardado en la base de datos")
+        else:
+            st.warning("No hay mensaje para guardar")
 
-    frame_imagenes.pack(pady=20)
+    st.markdown("---")
+    st.subheader("Última Detección")
+    gesto_display = st.markdown("*Esperando...*")
 
-    # Lista para guardar referencias
-    imagenes_refs = []
+    # Mostrar últimos mensajes guardados
+    st.markdown("---")
+    st.subheader("Historial de mensajes guardados")
+    mensajes_guardados = session.query(Mensaje).order_by(Mensaje.timestamp.desc()).limit(5).all()
+    for m in mensajes_guardados:
+        st.markdown(f"-  {m.timestamp.strftime('%Y-%m-%d %H:%M:%S')}: *{m.texto}*")
 
-    # Mostrar cada letra
-    for letra in frase:
+# ===== BUCLE PRINCIPAL =====
+if run:
+    cap = cv2.VideoCapture(0)
+    ultimo_gesto = None
+    ultimo_tiempo = 0
 
-        if letra == " ":
-            continue
+    while run:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Error al acceder a la cámara.")
+            break
 
-        if letra in IMAGENES:
+        frame = cv2.flip(frame, 1)
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(image)
+        h, w = image.shape[:2]
+        gesto = None
 
-            try:
-                # Abrir imagen
-                img = Image.open(IMAGENES[letra])
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp.solutions.drawing_utils.draw_landmarks(
+                    image, hand_landmarks,
+                    mp.solutions.hands.HAND_CONNECTIONS,
+                    mp.solutions.drawing_styles.get_default_hand_landmarks_style(),
+                    mp.solutions.drawing_styles.get_default_hand_connections_style())
+                gesto = detectar_gesto(hand_landmarks, w, h)
 
-                # Redimensionar
-                img = img.resize((100, 100))
+        ahora = time.time()
+        if gesto and (ahora - ultimo_tiempo >1.8):
+        ##if gesto and (ahora - ultimo_tiempo > 2.5 or gesto != ultimo_gesto):
+            if gesto == "BORRAR" and st.session_state.mensaje:
+                st.session_state.mensaje.pop()
+            elif gesto == "BORRAR_TODO":
+                st.session_state.mensaje = []
+            elif gesto == "ESPACIO":
+                st.session_state.mensaje.append(" ")
+            elif len(gesto) == 1:
+                st.session_state.mensaje.append(gesto)
+            mensaje_display.markdown(
+                f"<div style='min-height: 100px; border: 1px solid #eee; padding: 10px; border-radius: 5px;'><b>{' '.join(st.session_state.mensaje)}</b></div>",
+                unsafe_allow_html=True)
+            gesto_display.markdown(f"*{gesto}*")
+            ultimo_gesto = gesto
+            ultimo_tiempo = ahora
 
-                foto = ImageTk.PhotoImage(img)
-
-                # Guardar referencia
-                imagenes_refs.append(foto)
-
-                # Frame individual
-                frame_letra = tk.Frame(
-                    frame_imagenes,
-                    bg="white"
-                )
-
-                frame_letra.pack(
-                    side="left",
-                    padx=10
-                )
-
-                # Mostrar letra
-                tk.Label(
-                    frame_letra,
-                    text=letra,
-                    font=("Arial", 16, "bold"),
-                    bg="white"
-                ).pack()
-
-                # Mostrar imagen
-                panel = tk.Label(
-                    frame_letra,
-                    image=foto,
-                    bg="white"
-                )
-
-                panel.image = foto
-                panel.pack()
-
-                # Mostrar descripción
-                tk.Label(
-                    frame_letra,
-                    text=MENSAJES[letra],
-                    font=("Arial", 8),
-                    bg="white",
-                    wraplength=120
-                ).pack(pady=5)
-
-            except:
-                tk.Label(
-                    frame_imagenes,
-                    text=f"Error en {letra}",
-                    bg="white",
-                    fg="red"
-                ).pack(side="left")
-
-
-def on_enter(e):
-    e.widget.config(bg="#a6d4ff")
-
-def on_leave(e):
-    e.widget.config(bg="#e0e0e0")
-
-
-
-# ==============================
-# INTERFAZ
-# ==============================
-
-ventana = tk.Tk()
-ventana.title("Lenguaje de Señas - A-Z")
-ventana.geometry("500x500")
-ventana.config(bg="#f5f7fa")
-
-# Título
-titulo = tk.Label(
-    ventana,
-    text="Aprende el Abecedario en Señas",
-    font=("Arial", 16, "bold"),
-    bg="#f5f7fa",
-    fg="#333"
-)
-titulo.pack(pady=10)
-
-# Buscador
-frame_busqueda = tk.Frame(ventana, bg="#f5f7fa")
-frame_busqueda.pack(pady=10)
-
-entrada = tk.Entry(frame_busqueda, width=5, font=("Arial", 14))
-entrada.pack(side="left", padx=5)
-
-btn_buscar = tk.Button(
-    frame_busqueda,
-    text="Buscar",
-    command=buscar_sena,
-    bg="#4CAF50",
-    fg="white"
-)
-btn_buscar.pack(side="left")
-
-# ==============================
-# TRADUCTOR DE FRASES
-# ==============================
-
-frame_traductor = tk.Frame(ventana, bg="#f5f7fa")
-frame_traductor.pack(pady=20)
-
-label_traductor = tk.Label(
-    frame_traductor,
-    text="Escribe una palabra o frase:",
-    font=("Arial", 12),
-    bg="#f5f7fa"
-)
-label_traductor.pack()
-
-entrada_frase = tk.Entry(
-    frame_traductor,
-    width=30,
-    font=("Arial", 14)
-)
-entrada_frase.pack(pady=5)
-
-btn_traducir = tk.Button(
-    frame_traductor,
-    text="Traducir",
-    bg="#2196F3",
-    fg="white",
-    font=("Arial", 11, "bold"),
-    command=lambda: traducir_frase()
-)
-
-btn_traducir.pack()
-
-
-
-# Frame de botones
-frame_botones = tk.Frame(ventana, bg="#f5f7fa")
-frame_botones.pack()
-
-# Crear botones en grid (mejor presentación)
-fila = 0
-columna = 0
-
-for letra in MENSAJES.keys():
-    btn = tk.Button(
-        frame_botones,
-        text=letra,
-        width=5,
-        height=2,
-        font=("Arial", 12, "bold"),
-        bg="#e0e0e0",
-        command=lambda l=letra: mostrar_sena(l)
-    )
-    btn.grid(row=fila, column=columna, padx=5, pady=5)
-
-    btn.bind("<Enter>", on_enter)
-    btn.bind("<Leave>", on_leave)
-
-    columna += 1
-    if columna == 6:
-        columna = 0
-        fila += 1
-
-# Footer
-footer = tk.Label(
-    ventana,
-    text="Proyecto de Lenguaje de Señas - Python Tkinter",
-    font=("Arial", 9),
-    bg="#f5f7fa",
-    fg="#777"
-)
-footer.pack(pady=10)
-
-ventana.mainloop()
+        cv2.putText(image, f"Mensaje: {' '.join(st.session_state.mensaje)}",
+                    (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        frame_placeholder.image(image, channels="RGB")
+    cap.release()
+else:
+    st.info("Activa la cámara para comenzar")
+detectar_gesto
